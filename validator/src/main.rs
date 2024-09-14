@@ -78,6 +78,7 @@ use {
         path::{Path, PathBuf},
         process::exit,
         str::FromStr,
+        str::from_utf8,
         sync::{Arc, RwLock},
         time::{Duration, SystemTime},
     },

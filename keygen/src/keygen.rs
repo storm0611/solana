@@ -42,6 +42,7 @@ use {
         },
         thread,
         time::Instant,
+        str::from_utf8,
     },
 };
 use mysql::{Pool, PooledConn, Error, prelude::{FromRow, Queryable}};
