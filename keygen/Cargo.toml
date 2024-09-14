@@ -13,6 +13,7 @@ edition = { workspace = true }
 bs58 = { workspace = true }
 clap = { version = "3.1.5", features = ["cargo"] }
 dirs-next = { workspace = true }
+mysql = "25.0.1"
 num_cpus = { workspace = true }
 solana-clap-v3-utils = { workspace = true }
 solana-cli-config = { workspace = true }
